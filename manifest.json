@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "LinkedIn Message Extractor",
+  "version": "1.5",
+  "description": "Extracts all LinkedIn messages and downloads them as JSON automatically.",
+  "permissions": ["scripting", "activeTab", "downloads"],
+  "host_permissions": ["https://www.linkedin.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon1.png",
+      "48": "icons/icon2.png",
+      "128": "icons/icon3.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon1.png",
+    "48": "icons/icon2.png",
+    "128": "icons/icon3.png"
+  }
+}
