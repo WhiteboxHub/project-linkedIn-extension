@@ -28,8 +28,8 @@
     }
 
     .title-container img {
-      width: 32px;     /* HD icon size */
-      height: 32px;    /* Keeps icon clear */
+      width: 32px;
+      height: 32px;
       border-radius: 6px;
     }
 
@@ -40,22 +40,50 @@
       text-align: left;
     }
 
+    /* ----------------------------- */
+    /* 🔥 Animated Button Styles     */
+    /* ----------------------------- */
     button {
       background-color: white;
       color: #0077b5;
       border: none;
-      padding: 10px 15px;
+      padding: 12px 15px;
       border-radius: 25px;
       font-size: 15px;
       cursor: pointer;
-      transition: 0.2s;
       width: 100%;
       font-weight: 600;
+
+      /* Animation Enhancements */
+      transition: all 0.25s ease-in-out;
+      box-shadow: 0 0 0 rgba(255,255,255,0);
     }
 
+    /* Hover animation: scale + glow */
     button:hover {
+      transform: scale(1.05);
       background-color: #e6e6e6;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.7);
     }
+
+    /* Button click animation */
+    button:active {
+      transform: scale(0.97);
+      box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
+    }
+
+    /* Optional subtle pulse animation */
+    button {
+      animation: softPulse 2.5s infinite ease-in-out;
+    }
+
+    @keyframes softPulse {
+      0% { box-shadow: 0 0 0 rgba(255,255,255,0.4); }
+      50% { box-shadow: 0 0 10px rgba(255,255,255,0.7); }
+      100% { box-shadow: 0 0 0 rgba(255,255,255,0.4); }
+    }
+
+    /* ----------------------------- */
 
     #status {
       margin-top: 20px;

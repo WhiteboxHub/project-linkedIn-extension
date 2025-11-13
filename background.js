@@ -1,5 +1,6 @@
+// background.js
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  // Handle request from popup to start extraction
+  // start extraction when popup asks
   if (message.action === "run_extractor") {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.url.includes("linkedin.com/messaging")) {
@@ -13,7 +14,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     }
   }
 
-  // Forward progress messages from content to popup
+  // forward messages from content script to popup
   if (message.from === "content") {
     chrome.runtime.sendMessage({
       from: "background",
