@@ -3,11 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <title>LinkedIn Message Extractor</title>
+
   <style>
     body {
       font-family: "Segoe UI", Arial, sans-serif;
       width: 320px;
-      background: linear-gradient(145deg, #0077b5, #005983);
+
+      /* Blue → Green gradient */
+      background: linear-gradient(135deg, #0077b5, #00c853);
+
       color: white;
       text-align: center;
       padding: 20px;
@@ -15,10 +19,25 @@
       box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
     }
 
+    .title-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .title-container img {
+      width: 32px;     /* HD icon size */
+      height: 32px;    /* Keeps icon clear */
+      border-radius: 6px;
+    }
+
     h3 {
-      margin-top: 0;
+      margin: 0;
       font-size: 18px;
       font-weight: 600;
+      text-align: left;
     }
 
     button {
@@ -35,7 +54,7 @@
     }
 
     button:hover {
-      background-color: #f0f0f0;
+      background-color: #e6e6e6;
     }
 
     #status {
@@ -45,7 +64,7 @@
       border-radius: 12px;
       padding: 10px;
       transition: all 0.3s ease;
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.15);
     }
 
     /* Spinner styles */
@@ -67,7 +86,7 @@
     }
 
     #status.processing {
-      background: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.25);
     }
     #status.success {
       background: rgba(0, 255, 0, 0.25);
@@ -75,12 +94,19 @@
     #status.error {
       background: rgba(255, 0, 0, 0.25);
     }
+
   </style>
 </head>
+
 <body>
-  <h3>LinkedIn Message Extractor</h3>
+  <div class="title-container">
+    <img src="icons/iconIP1.png" alt="Extension Icon">
+    <h3>LinkedIn Message Extractor</h3>
+  </div>
+
   <button id="extractBtn">Extract Messages</button>
   <div id="status">Status: Idle</div>
+
   <script src="popup.js"></script>
 </body>
 </html>
