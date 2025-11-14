@@ -7,16 +7,26 @@
   <style>
     body {
       font-family: "Segoe UI", Arial, sans-serif;
-      width: 320px;
+      width: 380px;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
 
       /* Blue → Green gradient */
       background: linear-gradient(135deg, #0077b5, #00c853);
 
       color: white;
       text-align: center;
-      padding: 20px;
+      padding: 18px;
+      box-sizing: border-box;
       border-radius: 20px;
       box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
     }
 
     .title-container {
@@ -86,13 +96,15 @@
     /* ----------------------------- */
 
     #status {
-      margin-top: 20px;
-      font-size: 15px;
+      margin-top: 15px;
+      font-size: 14px;
       font-weight: 500;
       border-radius: 12px;
       padding: 10px;
       transition: all 0.3s ease;
       background: rgba(255, 255, 255, 0.15);
+      word-wrap: break-word;
+      line-height: 1.4;
     }
 
     /* Spinner styles */
@@ -123,6 +135,93 @@
       background: rgba(255, 0, 0, 0.25);
     }
 
+    /* Config Panel Styles */
+    .config-panel {
+      margin-top: 12px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    .config-toggle {
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .config-content {
+      display: none;
+    }
+
+    .config-content.active {
+      display: block;
+    }
+
+    .config-group {
+      margin-bottom: 8px;
+    }
+
+    .config-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      font-size: 12px;
+    }
+
+    .config-group input,
+    .config-group select {
+      width: 100%;
+      padding: 8px;
+      border: none;
+      border-radius: 8px;
+      font-size: 12px;
+      box-sizing: border-box;
+      background: rgba(255, 255, 255, 0.9);
+      color: #333;
+    }
+
+    .config-group input:focus,
+    .config-group select:focus {
+      outline: 2px solid rgba(255, 255, 255, 0.8);
+    }
+
+    .save-config-btn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 7px;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .save-config-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .config-status {
+      margin-top: 6px;
+      font-size: 10px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      text-align: center;
+      word-wrap: break-word;
+      line-height: 1.2;
+      min-height: 18px;
+    }
+
+    .config-status.saved {
+      background: rgba(0, 255, 0, 0.2);
+    }
+
   </style>
 </head>
 
@@ -134,6 +233,40 @@
 
   <button id="extractBtn">Extract Messages</button>
   <div id="status">Status: Idle</div>
+
+  <div class="config-panel">
+    <div class="config-toggle" id="configToggle">
+      <span>⚙️ LLM Configuration</span>
+      <span id="configArrow">▼</span>
+    </div>
+    <div class="config-content" id="configContent">
+      <div class="config-group">
+        <label for="apiProvider">LLM Provider:</label>
+        <select id="apiProvider">
+          <option value="groq">Groq</option>
+          <option value="openai">OpenAI</option>
+          <option value="gemini">Google Gemini</option>
+          <option value="azure">Azure OpenAI</option>
+        </select>
+      </div>
+      <div class="config-group">
+        <label for="apiKey">API Key:</label>
+        <input type="password" id="apiKey" placeholder="Enter your API key">
+      </div>
+      <div class="config-group">
+        <label for="apiEndpoint">API Endpoint:</label>
+        <input type="text" id="apiEndpoint" placeholder="https://api.groq.com/openai/v1/chat/completions">
+      </div>
+        <div class="config-group">
+          <label for="modelName">Model Name:</label>
+          <select id="modelName">
+            <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
+          </select>
+        </div>
+      <button class="save-config-btn" id="saveConfigBtn">Save Configuration</button>
+      <div id="configStatus" class="config-status"></div>
+    </div>
+  </div>
 
   <script src="popup.js"></script>
 </body>

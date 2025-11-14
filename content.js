@@ -1,16 +1,29 @@
-// content.js — Final with merge-dedupe (email-priority + merge missing fields)
 (async () => {
-  // send logs to popup via background
-  function sendUpdate(type, text) {
-    chrome.runtime.sendMessage({ from: "content", type, text });
-  }
-  function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-
-  // regexes
   const PHONE_RE = /(\+?\d[\d\-\.\s\(\)]{6,}\d)/g;
   const EMAIL_RE = /([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)/g;
 
-  // --- Normalizers & extractors ---
+  // Sends status update message to popup via background script
+  function sendUpdate(type, text) {
+    chrome.runtime.sendMessage({ from: "content", type, text });
+  }
+
+  // Creates a delay promise for specified milliseconds
+  function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Waits for a DOM selector to appear with timeout
+  async function waitForSelector(selector, timeoutMs = 6000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const el = document.querySelector(selector);
+      if (el) return el;
+      await delay(100);
+    }
+    return null;
+  }
+
+  // Cleans and normalizes a raw phone number string
   function cleanPhone(raw) {
     if (!raw) return null;
     let p = String(raw).trim();
@@ -20,15 +33,18 @@
     p = p.replace(/[^+\d]/g, '');
     const digits = p.replace(/\D/g, '');
     if (digits.length < 6 || digits.length > 15) return null;
-    return p; // keep + if present
+    return p;
   }
+
+  // Generates a normalized phone key for deduplication
   function phoneKey(phone) {
     if (!phone) return null;
     const digits = phone.replace(/\D/g, '');
     if (!digits) return null;
-    // strip leading zeros for key consistency
     return digits.replace(/^0+/, '');
   }
+
+  // Extracts the first valid phone number from message array
   function extractFirstPhoneFromMessages(messages) {
     if (!messages || !messages.length) return null;
     for (const msg of messages) {
@@ -43,6 +59,7 @@
     return null;
   }
 
+  // Extracts the first valid email address from message array
   function extractFirstEmailFromMessages(messages) {
     if (!messages || !messages.length) return null;
     for (const msg of messages) {
@@ -52,16 +69,19 @@
     return null;
   }
 
+  // Normalizes email address to lowercase for key generation
   function normalizeEmailForKey(email) {
     if (!email) return null;
     return String(email).trim().toLowerCase();
   }
 
+  // Normalizes contact name for key generation
   function normalizeNameForKey(name) {
     if (!name) return null;
     return String(name).trim().toLowerCase().replace(/\s+/g, ' ');
   }
 
+  // Normalizes LinkedIn URL to canonical format
   function normalizeLinkedInUrl(url) {
     if (!url) return null;
     let u = String(url).trim();
@@ -80,6 +100,7 @@
     }
   }
 
+  // Extracts LinkedIn internal ID from href URL
   function extractInternalIdFromHref(href) {
     if (!href) return null;
     try {
@@ -93,22 +114,23 @@
     if (m2 && m2[1]) return m2[1];
     return null;
   }
+
+  // Normalizes LinkedIn internal ID for key generation
   function normalizeInternalIdForKey(id) {
     if (!id) return null;
     return String(id).trim().toLowerCase();
   }
 
-  // --- Merge-Dedupe Engine (email-priority, merge missing fields) ---
+  // Merges and deduplicates contact records using email-priority algorithm
   function mergeAndDedupe(rows) {
-    // maps point to index in merged array
     const mapByEmail = new Map();
     const mapByInternal = new Map();
     const mapByLinkedIn = new Map();
     const mapByPhone = new Map();
     const mapByName = new Map();
-
     const merged = [];
 
+    // Registers all keys for an item in the mapping indexes
     function registerMaps(item, idx) {
       const e = normalizeEmailForKey(item.email);
       const i = normalizeInternalIdForKey(item.linkedin_internal_id);
@@ -123,6 +145,7 @@
       if (n) mapByName.set(n, idx);
     }
 
+    // Finds existing record index by matching keys
     function findExistingIndex(item) {
       const e = normalizeEmailForKey(item.email);
       const i = normalizeInternalIdForKey(item.linkedin_internal_id);
@@ -141,7 +164,6 @@
     for (const row of rows) {
       const idx = findExistingIndex(row);
       if (idx === -1) {
-        // no existing -> push new
         const copy = {
           contactName: row.contactName || '',
           linkedInUrl: row.linkedInUrl || '',
@@ -153,16 +175,11 @@
         const newIdx = merged.push(copy) - 1;
         registerMaps(copy, newIdx);
       } else {
-        // merge into existing
         const existing = merged[idx];
-
-        // Decide which record should be "primary" by email presence.
         const existingHasEmail = existing.email && String(existing.email).trim() !== '';
         const incomingHasEmail = row.email && String(row.email).trim() !== '';
 
-        // If incoming has email and existing doesn't, prefer incoming as base: but keep existing fields if incoming missing.
         if (incomingHasEmail && !existingHasEmail) {
-          // make a merged object where email wins
           const mergedObj = {
             contactName: existing.contactName || row.contactName || '',
             linkedInUrl: existing.linkedInUrl || row.linkedInUrl || '',
@@ -172,20 +189,16 @@
             messages: Array.from(new Set([...(existing.messages || []), ...(row.messages || [])]))
           };
           merged[idx] = mergedObj;
-          // re-register maps because keys may have changed (email added)
           registerMaps(merged[idx], idx);
         } else {
-          // existing either has email or neither has email -> merge missing fields into existing
           existing.contactName = existing.contactName || row.contactName || '';
           existing.linkedInUrl = existing.linkedInUrl || row.linkedInUrl || '';
           existing.linkedin_internal_id = existing.linkedin_internal_id || row.linkedin_internal_id || '';
           existing.phone = existing.phone || row.phone || null;
           existing.email = existing.email || row.email || null;
-          // merge messages (preserve order: existing then new unique)
           const set = new Set(existing.messages || []);
           for (const m of (row.messages || [])) set.add(m);
           existing.messages = Array.from(set);
-          // update maps (in case keys new were added)
           registerMaps(existing, idx);
         }
       }
@@ -194,28 +207,217 @@
     return merged;
   }
 
-  // --- Main extraction ---
+  // Scrolls through conversation list and returns all chat elements
+  async function loadAllContacts() {
+    const scrollContainer = document.querySelector('.msg-conversations-container__conversations-list');
+    if (!scrollContainer) {
+      sendUpdate("error", "Conversation list not found. Open LinkedIn Messaging.");
+      return [];
+    }
+    let prevHeight = 0;
+    for (let i = 0; i < 40; i++) {
+      scrollContainer.scrollTo(0, scrollContainer.scrollHeight);
+      await delay(1100);
+      const newHeight = scrollContainer.scrollHeight;
+      if (newHeight === prevHeight) break;
+      prevHeight = newHeight;
+    }
+    const chats = Array.from(document.querySelectorAll('.msg-conversation-listitem__link'));
+    sendUpdate("progress", `Found ${chats.length} chats`);
+    return chats;
+  }
+
+  // Downloads a file with given filename and content
+  function downloadFile(filename, content) {
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Generates SQL via LLM API with automatic batching for large datasets
+  async function generateSQLViaLLM(jsonData) {
+    const MAX_BATCH_SIZE = 150000;
+    const jsonString = JSON.stringify(jsonData, null, 2);
+
+    if (jsonString.length > MAX_BATCH_SIZE) {
+      sendUpdate("progress", `JSON too large (${Math.round(jsonString.length / 1024)}KB). Batching...`);
+      return await generateSQLInBatches(jsonData, MAX_BATCH_SIZE);
+    }
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("LLM API call timed out after 60 seconds"));
+      }, 60000);
+
+      // Listen for response message as fallback
+      const messageListener = (msg) => {
+        if (msg.from === "background" && msg.action === "llm_response") {
+          clearTimeout(timeout);
+          chrome.runtime.onMessage.removeListener(messageListener);
+          console.log("Received LLM response via message listener");
+          if (msg.success && msg.sql) {
+            console.log("Resolving with LLM SQL, length:", msg.sql.length);
+            resolve(msg.sql);
+          } else {
+            console.error("LLM response indicates failure:", msg.error);
+            reject(new Error(msg.error || "LLM failed to generate SQL"));
+          }
+        }
+      };
+      chrome.runtime.onMessage.addListener(messageListener);
+
+      try {
+        console.log("Sending LLM request to background script...");
+        chrome.runtime.sendMessage({
+          action: "call_llm",
+          jsonData: jsonData
+        }, (response) => {
+          console.log("Callback invoked, response:", response ? "received" : "null");
+          
+          if (chrome.runtime.lastError) {
+            console.error("Runtime error in callback:", chrome.runtime.lastError.message);
+            if (!response) {
+              clearTimeout(timeout);
+              chrome.runtime.onMessage.removeListener(messageListener);
+              reject(new Error(chrome.runtime.lastError.message));
+            }
+            return;
+          }
+          if (response) {
+            clearTimeout(timeout);
+            chrome.runtime.onMessage.removeListener(messageListener);
+            console.log("Response received via callback, success:", response.success, "has SQL:", !!response.sql);
+            if (response.success && response.sql) {
+              console.log("Resolving with LLM SQL, length:", response.sql.length);
+              resolve(response.sql);
+            } else {
+              console.error("Response indicates failure:", response.error);
+              reject(new Error(response.error || "LLM failed to generate SQL"));
+            }
+          } else {
+            console.log("No response in callback, waiting for message listener...");
+          }
+        });
+        console.log("Message sent, waiting for response...");
+      } catch (err) {
+        clearTimeout(timeout);
+        chrome.runtime.onMessage.removeListener(messageListener);
+        console.error("Error sending message:", err);
+        reject(new Error(`Failed to send LLM request: ${err.message}`));
+      }
+    });
+  }
+
+  // Processes large JSON datasets in batches to avoid API limits
+  async function generateSQLInBatches(jsonData, maxSize) {
+    const batches = [];
+    let currentBatch = [];
+    let currentSize = 0;
+    const baseSize = 100;
+
+    for (const item of jsonData) {
+      const itemSize = JSON.stringify(item).length;
+      if (currentSize + itemSize + baseSize > maxSize && currentBatch.length > 0) {
+        batches.push([...currentBatch]);
+        currentBatch = [item];
+        currentSize = itemSize;
+      } else {
+        currentBatch.push(item);
+        currentSize += itemSize;
+      }
+    }
+    if (currentBatch.length > 0) {
+      batches.push(currentBatch);
+    }
+
+    sendUpdate("progress", `Processing ${batches.length} batches...`);
+    const sqlParts = [];
+
+    for (let i = 0; i < batches.length; i++) {
+      sendUpdate("progress", `Generating SQL for batch ${i + 1}/${batches.length}...`);
+      try {
+        const sql = await new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({
+            action: "call_llm",
+            jsonData: batches[i]
+          }, (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            if (!response || !response.success) {
+              reject(new Error(response?.error || "Unknown error"));
+              return;
+            }
+            resolve(response.sql);
+          });
+        });
+        sqlParts.push(sql);
+        await delay(1000);
+      } catch (err) {
+        sendUpdate("progress", `Batch ${i + 1} failed: ${err.message}. Continuing...`);
+      }
+    }
+
+    if (sqlParts.length === 0) {
+      throw new Error("All batches failed");
+    }
+
+    return sqlParts.join("\n\n");
+  }
+
+  // Escapes SQL string values for safe insertion
+  function escapeSql(val) {
+    if (val === null || val === undefined) return "NULL";
+    return "'" + String(val).replace(/'/g, "''") + "'";
+  }
+
+  // Generates fallback SQL when LLM generation fails
+  function generateFallbackSQL(rows) {
+    const filtered = rows.filter(r => r.linkedInUrl);
+    if (!filtered.length) return "-- No valid records\n";
+
+    const values = filtered.map(r => {
+      const fullName = r.contactName || null;
+      const linkedin_id = r.linkedInUrl || null;
+      const linkedin_internal_id = r.linkedin_internal_id || null;
+      const phone = r.phone || null;
+      const email = r.email || null;
+
+      return "(" +
+        escapeSql(fullName) + ", " +
+        "NULL, " +
+        escapeSql(email) + ", " +
+        escapeSql(phone) + ", " +
+        escapeSql(linkedin_id) + ", " +
+        "NULL, NULL, CURRENT_DATE(), 0, NULL, " +
+        escapeSql(linkedin_internal_id) +
+      ")";
+    }).join(",\n");
+
+    return `
+-- LLM Failed, Generated with Fallback function
+INSERT INTO vendor_contact_extracts
+  (full_name, source_email, email, phone, linkedin_id, company_name, location, extraction_date, moved_to_vendor, created_at, linkedin_internal_id)
+VALUES
+${values}
+AS new
+ON DUPLICATE KEY UPDATE
+  full_name = new.full_name,
+  email = new.email,
+  phone = new.phone,
+  linkedin_id = new.linkedin_id,
+  linkedin_internal_id = new.linkedin_internal_id,
+  extraction_date = new.extraction_date;
+`.trim();
+  }
+
   try {
     sendUpdate("progress", "Loading conversations...");
-
-    async function loadAllContacts() {
-      const scrollContainer = document.querySelector('.msg-conversations-container__conversations-list');
-      if (!scrollContainer) {
-        sendUpdate("error", "Conversation list not found. Open LinkedIn Messaging.");
-        return [];
-      }
-      let prevHeight = 0;
-      for (let i = 0; i < 40; i++) {
-        scrollContainer.scrollTo(0, scrollContainer.scrollHeight);
-        await delay(1100);
-        const newHeight = scrollContainer.scrollHeight;
-        if (newHeight === prevHeight) break;
-        prevHeight = newHeight;
-      }
-      const chats = Array.from(document.querySelectorAll('.msg-conversation-listitem__link'));
-      sendUpdate("progress", `Found ${chats.length} chats`);
-      return chats;
-    }
 
     const chatItems = await loadAllContacts();
     if (!chatItems.length) {
@@ -238,9 +440,10 @@
         '';
 
       let headerHref = null;
-      const headerLink = document.querySelector('.msg-thread__link-to-profile, .msg-overlay-bubble-header__recipient-link, .msg-entity-lockup__entity-link');
-      if (headerLink) headerHref = headerLink.getAttribute('href') || headerLink.getAttribute('data-href') || null;
+      const headerLinkEl = await waitForSelector('.msg-thread__link-to-profile, .msg-overlay-bubble-header__recipient-link, .msg-entity-lockup__entity-link', 5000);
+      if (headerLinkEl) headerHref = headerLinkEl.getAttribute('href') || headerLinkEl.getAttribute('data-href') || null;
 
+      await waitForSelector('.msg-s-event-listitem__body', 5000);
       const messageElements = Array.from(document.querySelectorAll('.msg-s-event-listitem__body'));
       const senderMessages = [];
       for (const el of messageElements) {
@@ -259,9 +462,11 @@
 
       let linkedInUrl = null;
       if (headerHref) {
-        if (headerHref.startsWith('//')) linkedInUrl = 'https:' + headerHref;
-        else if (!headerHref.startsWith('http')) linkedInUrl = headerHref.startsWith('/') ? 'https://linkedin.com' + headerHref : 'https://linkedin.com/' + headerHref;
-        else linkedInUrl = headerHref;
+        let tmp;
+        if (headerHref.startsWith('//')) tmp = 'https:' + headerHref;
+        else if (!headerHref.startsWith('http')) tmp = headerHref.startsWith('/') ? 'https://www.linkedin.com' + headerHref : 'https://www.linkedin.com/' + headerHref;
+        else tmp = headerHref;
+        linkedInUrl = normalizeLinkedInUrl(tmp);
       }
 
       const linkedin_internal_id = extractInternalIdFromHref(headerHref || linkedInUrl) || '';
@@ -278,8 +483,11 @@
       await delay(700);
     }
 
-    // JSON (full extraction)
-    const jsonBlob = new Blob([JSON.stringify(results, null, 2)], { type: "application/json" });
+    sendUpdate("progress", "Merging duplicate contacts...");
+    const unique = mergeAndDedupe(results);
+    sendUpdate("progress", `Unique records after merge: ${unique.length}/${results.length}`);
+
+    const jsonBlob = new Blob([JSON.stringify(unique, null, 2)], { type: "application/json" });
     const jsonUrl = URL.createObjectURL(jsonBlob);
     const ajson = document.createElement("a");
     ajson.href = jsonUrl;
@@ -287,75 +495,26 @@
     ajson.click();
     sendUpdate("progress", "JSON file downloaded");
 
-    // Merge + dedupe (email-priority + merge missing fields)
-    sendUpdate("progress", "Merging duplicates (email-priority)...");
-    const unique = mergeAndDedupe(results);
-    sendUpdate("progress", `Unique records after merge: ${unique.length}/${results.length}`);
-
-    // generate SQL from unique
-    const sqlText = generateUpsertSQL(unique);
-    if (!sqlText || !sqlText.trim()) {
-      downloadFile("upsert.sql", "-- No valid rows to insert\n");
-    } else {
-      downloadFile("upsert.sql", sqlText);
+    sendUpdate("progress", "Generating SQL via LLM...");
+    try {
+      const sqlText = await generateSQLViaLLM(unique);
+      if (!sqlText || !sqlText.trim()) {
+        downloadFile("upsert.sql", "-- No valid rows to insert\n");
+        sendUpdate("progress", "SQL file generated (empty)");
+      } else {
+        downloadFile("upsert.sql", sqlText.trim());
+        sendUpdate("progress", "SQL file generated and downloaded");
+        sendUpdate("done", "Extraction completed! (Generated using LLM)");
+      }
+    } catch (err) {
+      sendUpdate("error", `LLM failed: ${err.message}`);
+      sendUpdate("progress", "LLM failed, trying with fallback function...");
+      await delay(1000);
+      const fallbackSQL = generateFallbackSQL(unique);
+      downloadFile("upsert.sql", fallbackSQL);
+      sendUpdate("done", "Extraction completed! (Generated using fallback)");
     }
-    sendUpdate("done", "Extraction completed!");
   } catch (err) {
     sendUpdate("error", err.message || String(err));
   }
-
-  // --- Helpers for SQL + download ---
-  function downloadFile(filename, content) {
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function escapeSql(val) {
-    if (val === null || val === undefined) return "NULL";
-    return "'" + String(val).replace(/'/g, "''") + "'";
-  }
-
-  function generateUpsertSQL(rows) {
-  const filtered = rows.filter(r => r.linkedInUrl);
-  if (!filtered.length) return "-- No valid records\n";
-
-  const values = filtered.map(r => {
-    const fullName = r.contactName || null;
-    const linkedin_id = r.linkedInUrl || null;
-    const linkedin_internal_id = r.linkedin_internal_id || null;
-    const phone = r.phone || null;
-    const email = r.email || null;
-
-    return "(" +
-      escapeSql(fullName) + ", " +
-      "NULL, " + // source_email
-      escapeSql(email) + ", " +
-      escapeSql(phone) + ", " +
-      escapeSql(linkedin_id) + ", " +
-      "NULL, NULL, CURRENT_DATE(), 0, NULL, " +
-      escapeSql(linkedin_internal_id) +
-    ")";
-  }).join(",\n");
-
-  return `
--- MySQL UPSERT for vendor_contact_extracts
-INSERT INTO vendor_contact_extracts
-  (full_name, source_email, email, phone, linkedin_id, company_name, location, extraction_date, moved_to_vendor, created_at, linkedin_internal_id)
-VALUES
-${values}
-AS new
-ON DUPLICATE KEY UPDATE
-  full_name = new.full_name,
-  email = new.email,
-  phone = new.phone,
-  linkedin_id = new.linkedin_id,
-  linkedin_internal_id = new.linkedin_internal_id,
-  extraction_date = new.extraction_date;
-`.trim();
-}
 })();

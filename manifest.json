@@ -1,10 +1,16 @@
 {
   "manifest_version": 3,
   "name": "LinkedIn Message Extractor",
-  "version": "1.5",
-  "description": "Extracts all LinkedIn messages and downloads them as JSON automatically.",
-  "permissions": ["scripting", "activeTab", "downloads"],
+  "version": "2.0",
+  "description": "Extracts all LinkedIn messages, cleans data, removes duplicates, and generates SQL via LLM.",
+  "permissions": ["scripting", "activeTab", "downloads", "storage"],
   "host_permissions": ["https://www.linkedin.com/*"],
+  "optional_host_permissions": [
+    "https://api.openai.com/*",
+    "https://api.groq.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://*.openai.azure.com/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
